@@ -2,106 +2,109 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Cosmere RPG - Party Tracker</title>
+    <title>Cosmere RPG - High-Res Companion</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --shard: #1a252f; --gold: #f1c40f; --danger: #e74c3c; --bg: #2c3e50; }
+        :root { --shard: #1a252f; --gold: #f1c40f; --danger: #e74c3c; --bg: #2c3e50; --focus: #9b59b6; --invest: #3498db; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #000; color: #ecf0f1; overflow: hidden; }
         
-        /* Sidebar */
-        #sidebar { width: 380px; background: var(--bg); display: flex; flex-direction: column; box-shadow: 4px 0 15px #000; z-index: 1001; }
-        .header { padding: 20px; background: var(--shard); border-bottom: 2px solid var(--gold); }
-        #party-list { flex-grow: 1; padding: 15px; overflow-y: auto; }
+        #sidebar { width: 440px; background: var(--bg); display: flex; flex-direction: column; box-shadow: 4px 0 15px #000; z-index: 1001; }
+        .header { padding: 15px; background: var(--shard); border-bottom: 2px solid var(--gold); }
+        #party-list { flex-grow: 1; padding: 10px; overflow-y: auto; }
         
-        /* Full Character Card */
-        .card { background: rgba(0,0,0,0.3); border-left: 5px solid var(--gold); padding: 15px; margin-bottom: 15px; border-radius: 4px; position: relative; }
+        .card { background: rgba(0,0,0,0.4); border-left: 5px solid var(--gold); padding: 12px; margin-bottom: 15px; border-radius: 4px; position: relative; font-size: 0.85em; }
         .del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--danger); cursor: pointer; font-weight: bold; }
         
-        .char-info { margin-bottom: 10px; }
-        .char-info input[type="text"] { width: 90%; border: none; background: none; color: white; display: block; }
-        .char-name { font-weight: bold; font-size: 1.2em; }
-        .char-path { font-size: 0.85em; opacity: 0.7; font-style: italic; }
+        input { background: rgba(255,255,255,0.05); border: 1px solid #444; color: white; padding: 3px; border-radius: 3px; box-sizing: border-box; }
+        .char-name { font-weight: bold; font-size: 1.1em; border: none !important; width: 85%; }
+        .char-path { font-size: 0.8em; opacity: 0.7; border: none !important; width: 85%; margin-bottom: 5px; }
 
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid rgba(255,255,255,0.1); pt: 10px; padding-top: 10px; }
-        .stat-box label { font-size: 0.65em; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 2px; }
-        input[type="number"] { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid #444; color: white; padding: 5px; border-radius: 3px; box-sizing: border-box; }
+        .section-label { font-size: 0.6em; text-transform: uppercase; color: var(--gold); letter-spacing: 1px; margin: 10px 0 4px 0; border-bottom: 1px solid #444; padding-bottom: 2px; }
         
-        .add-btn { margin: 15px; padding: 12px; background: var(--gold); border: none; font-weight: bold; cursor: pointer; border-radius: 4px; color: #111; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+        .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
+        .stat-box { text-align: center; }
+        .stat-box label { font-size: 0.55em; display: block; margin-bottom: 2px; color: #bdc3c7; white-space: nowrap; }
+
+        .resource-hp { border-bottom: 2px solid var(--danger); }
+        .resource-focus { border-bottom: 2px solid var(--focus); }
+        .resource-invest { border-bottom: 2px solid var(--invest); }
+
+        .add-btn { margin: 10px; padding: 12px; background: var(--gold); border: none; font-weight: bold; cursor: pointer; border-radius: 4px; color: #111; }
         
-        /* Map Area */
         #map { flex-grow: 1; background: #0b1621; }
-        .coord-display { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px; font-size: 0.8em; z-index: 1000; }
+        .coord-display { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px; font-size: 0.8em; z-index: 1000; border: 1px solid var(--gold); }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
     <div class="header">
-        <h2 style="margin:0">Party Tracker</h2>
-        <small>Cosmere RPG Campaign</small>
+        <h2 style="margin:0">Bridge Four Tracker</h2>
     </div>
     <div id="party-list"></div>
-    <button class="add-btn" onclick="addChar()">+ Recruit New Radiant</button>
+    <button class="add-btn" onclick="addChar()">+ Add Character</button>
 </div>
 
 <div id="map"></div>
-<div class="coord-display" id="coords">Click map for coordinates</div>
+<div class="coord-display" id="coords">Click map to move Party</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // --- 1. DATA ---
     let party = JSON.parse(localStorage.getItem('cosmereParty')) || [];
     let partyMarker = null;
 
-    // --- 2. MAP SETUP (ANTI-SQUISH) ---
     const map = L.map('map', { crs: L.CRS.Simple, minZoom: -3, attributionControl: false });
     const img = new Image();
     img.src = 'roshar.webp'; 
     
     img.onload = function() {
-        const w = this.width;
-        const h = this.height;
-        const bounds = [[0, 0], [h, w]]; 
+        const bounds = [[0, 0], [this.height, this.width]]; 
         L.imageOverlay('roshar.webp', bounds).addTo(map);
         map.fitBounds(bounds);
         map.setMaxBounds(bounds);
     };
 
-    // --- 3. INTERACTIVITY ---
     map.on('click', e => {
-        const {lat, lng} = e.latlng;
-        document.getElementById('coords').innerText = `Lat: ${Math.round(lat)}, Lng: ${Math.round(lng)}`;
-        if (partyMarker) { partyMarker.setLatLng(e.latlng); } 
-        else { partyMarker = L.marker(e.latlng).addTo(map).bindPopup("<b>The Party</b>").openPopup(); }
+        if (partyMarker) partyMarker.setLatLng(e.latlng); 
+        else partyMarker = L.marker(e.latlng).addTo(map).bindPopup("Current Location").openPopup();
+        document.getElementById('coords').innerText = `Lat: ${Math.round(e.latlng.lat)}, Lng: ${Math.round(e.latlng.lng)}`;
     });
 
-    // --- 4. PARTY LOGIC ---
     function render() {
         const list = document.getElementById('party-list');
         list.innerHTML = party.map(c => `
             <div class="card">
                 <button class="del" onclick="removeChar(${c.id})">✕</button>
-                <div class="char-info">
-                    <input type="text" class="char-name" value="${c.name}" onchange="update(${c.id}, 'name', this.value)">
-                    <input type="text" class="char-path" value="${c.path}" onchange="update(${c.id}, 'path', this.value)">
+                <input type="text" class="char-name" value="${c.name}" onchange="update(${c.id}, 'name', this.value)" placeholder="Name">
+                <input type="text" class="char-path" value="${c.path}" onchange="update(${c.id}, 'path', this.value)" placeholder="Path / Order">
+                
+                <div class="section-label">Attributes & Defenses</div>
+                <div class="grid-4">
+                    <div class="stat-box"><label>STR</label><input type="number" value="${c.str}" onchange="update(${c.id}, 'str', this.value)"></div>
+                    <div class="stat-box"><label>SPD</label><input type="number" value="${c.spd}" onchange="update(${c.id}, 'spd', this.value)"></div>
+                    <div class="stat-box"><label>INT</label><input type="number" value="${c.int}" onchange="update(${c.id}, 'int', this.value)"></div>
+                    <div class="stat-box"><label>WIL</label><input type="number" value="${c.wil}" onchange="update(${c.id}, 'wil', this.value)"></div>
                 </div>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <label>Current HP</label>
-                        <input type="number" value="${c.hp}" onchange="update(${c.id}, 'hp', this.value)">
-                    </div>
-                    <div class="stat-box">
-                        <label>Max HP</label>
-                        <input type="number" value="${c.hpMax}" onchange="update(${c.id}, 'hpMax', this.value)">
-                    </div>
-                    <div class="stat-box">
-                        <label>Stormlight</label>
-                        <input type="number" value="${c.sl}" onchange="update(${c.id}, 'sl', this.value)">
-                    </div>
-                    <div class="stat-box">
-                        <label>Armor</label>
-                        <input type="number" value="${c.armor}" onchange="update(${c.id}, 'armor', this.value)">
-                    </div>
+                <div class="grid-4" style="margin-top:5px;">
+                    <div class="stat-box"><label>PHYS DEF</label><input type="number" value="${c.defP}" onchange="update(${c.id}, 'defP', this.value)"></div>
+                    <div class="stat-box"><label>COGN DEF</label><input type="number" value="${c.defC}" onchange="update(${c.id}, 'defC', this.value)"></div>
+                    <div class="stat-box"><label>SPIR DEF</label><input type="number" value="${c.defS}" onchange="update(${c.id}, 'defS', this.value)"></div>
+                    <div class="stat-box"><label>DEFLECT</label><input type="number" value="${c.deflect}" onchange="update(${c.id}, 'deflect', this.value)" style="color:var(--gold)"></div>
+                </div>
+
+                <div class="section-label">Vitals & Resources</div>
+                <div class="grid-3">
+                    <div class="stat-box"><label>HEALTH</label><input type="number" class="resource-hp" value="${c.hp}" onchange="update(${c.id}, 'hp', this.value)"></div>
+                    <div class="stat-box"><label>FOCUS</label><input type="number" class="resource-focus" value="${c.focus}" onchange="update(${c.id}, 'focus', this.value)"></div>
+                    <div class="stat-box"><label>INVEST.</label><input type="number" class="resource-invest" value="${c.invest}" onchange="update(${c.id}, 'invest', this.value)"></div>
+                </div>
+
+                <div class="section-label">Combat Output</div>
+                <div class="grid-3">
+                    <div class="stat-box"><label>ATK DAMAGE</label><input type="text" value="${c.atkDmg}" onchange="update(${c.id}, 'atkDmg', this.value)" placeholder="e.g. 2d6+3"></div>
+                    <div class="stat-box"><label>ARMOR</label><input type="number" value="${c.armor}" onchange="update(${c.id}, 'armor', this.value)"></div>
+                    <div class="stat-box"><label>WOUNDS</label><input type="number" value="${c.dmgTaken}" onchange="update(${c.id}, 'dmgTaken', this.value)" style="color:var(--danger)"></div>
                 </div>
             </div>
         `).join('');
@@ -110,28 +113,24 @@
 
     function addChar() {
         party.push({ 
-            id: Date.now(), 
-            name: "New Hero", 
-            path: "Windrunner - 1st Ideal",
-            hp: 20, 
-            hpMax: 20,
-            sl: 3,
-            armor: 0
+            id: Date.now(), name: "New Hero", path: "1st Ideal",
+            str: 0, spd: 0, int: 0, wil: 0,
+            defP: 10, defC: 10, defS: 10, deflect: 0,
+            hp: 20, focus: 5, invest: 3,
+            atkDmg: "1d6", armor: 0, dmgTaken: 0
         });
         render();
     }
 
     function removeChar(id) {
-        if(confirm("Remove from party?")) {
-            party = party.filter(p => p.id !== id);
-            render();
-        }
+        if(confirm("Delete hero?")) { party = party.filter(p => p.id !== id); render(); }
     }
 
     function update(id, key, val) {
         const c = party.find(p => p.id === id);
         if(c) {
-            c[key] = isNaN(val) || val === '' ? val : parseInt(val);
+            // Allow string for damage (like 2d6), others are numbers
+            c[key] = (isNaN(val) || val === '' || key === 'atkDmg' || key === 'name' || key === 'path') ? val : parseInt(val);
             localStorage.setItem('cosmereParty', JSON.stringify(party));
         }
     }
