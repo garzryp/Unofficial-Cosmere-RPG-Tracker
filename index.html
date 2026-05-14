@@ -3,130 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cosmere RPG Party Tracker & Map</title>
+    <title>Roshar Companion - Cosmere RPG</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
-            --shard-blue: #2c3e50;
+            --shard-blue: #1a252f;
             --stormlight-gold: #f1c40f;
-            --parsh-red: #c0392b;
-            --bg-color: #ecf0f1;
+            --parsh-red: #e74c3c;
+            --sidebar-bg: #2c3e50;
+            --text-main: #ecf0f1;
         }
 
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: var(--bg-color); display: flex; height: 100vh; overflow: hidden; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 0; 
+            display: flex; 
+            height: 100vh; 
+            background: #000; 
+            color: var(--text-main);
+        }
 
-        /* Left Panel: Party Tracker */
-        #party-panel { width: 350px; background: var(--shard-blue); color: white; padding: 20px; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.3); z-index: 1000; }
-        
-        .character-card { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--stormlight-gold); }
-        .stat-row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 0.9em; }
-        input[type="number"] { width: 50px; background: transparent; border: 1px solid #555; color: white; border-radius: 4px; padding: 2px; }
-        
-        /* Right Panel: Map */
-        #map-container { flex-grow: 1; position: relative; }
+        /* Sidebar Sidebar */
+        #sidebar { 
+            width: 380px; 
+            background: var(--sidebar-bg); 
+            display: flex; 
+            flex-direction: column;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            z-index: 1001;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: var(--shard-blue);
+            border-bottom: 2px solid var(--stormlight-gold);
+        }
+
+        #party-list {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        /* Character Cards */
+        .character-card {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 5px solid var(--stormlight-gold);
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            position: relative;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: var(--parsh-red);
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .stat-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .stat-box label { font-size: 0.7em; text-transform: uppercase; display: block; color: var(--stormlight-gold); }
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #444;
+            color: white;
+            padding: 5px;
+            border-radius: 3px;
+            box-sizing: border-box;
+        }
+
+        .btn-add {
+            margin: 20px;
+            padding: 12px;
+            background: var(--stormlight-gold);
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .btn-add:active { transform: scale(0.98); }
+
+        /* Map Area */
+        #map-area { flex-grow: 1; position: relative; }
         #map { height: 100%; width: 100%; background: #0b1621; }
 
-        h2 { border-bottom: 2px solid var(--stormlight-gold); padding-bottom: 5px; }
-        .btn-add { background: var(--stormlight-gold); border: none; padding: 10px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .map-coords {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 4px;
+            z-index: 1000;
+            font-size: 0.8em;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-<div id="party-panel">
-    <h2>Party Tracker</h2>
+<div id="sidebar">
+    <div class="sidebar-header">
+        <h2 style="margin:0">Party Tracker</h2>
+        <small style="opacity:0.6">Bridge Four / Radiant Squad</small>
+    </div>
+    
     <div id="party-list">
         </div>
-    <button class="btn-add" onclick="addCharacter()">+ Add Radiant</button>
-    <p style="font-size: 0.7em; margin-top: 20px; opacity: 0.7;">
-        "Life before death. Strength before weakness. Journey before destination."
-    </p>
+
+    <button class="btn-add" onclick="addNewCharacter()">+ Recruit New Radiant</button>
 </div>
 
-<div id="map-container">
+<div id="map-area">
     <div id="map"></div>
+    <div class="map-coords" id="coords">Click map for coordinates</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-    // 1. MAP INITIALIZATION
-    // Using an Azimuthal Equidistant projection-style setup for Roshar
+    // --- 1. INITIALIZE DATA ---
+    let party = JSON.parse(localStorage.getItem('rosharParty')) || [];
+
+    // --- 2. MAP SETUP ---
     const map = L.map('map', {
         crs: L.CRS.Simple,
         minZoom: -2
     });
 
-    // High-res Roshar Map (Community Resource)
+    // Replace this URL with your local file "roshar.jpg" or a stable link
+    const mapImgUrl = 'https://www.worldanvil.com/uploads/images/7377f0a8d5e8654c86e066e4a2e0e4b8.jpg';
     const bounds = [[0, 0], [1000, 1000]];
-    const image = L.imageOverlay('https://roshar.17thshard.com/images/roshar_map.jpg', bounds).addTo(map);
+    const image = L.imageOverlay(mapImgUrl, bounds).addTo(map);
     map.fitBounds(bounds);
 
-    // Sample Locations (Markers)
-    const locations = [
-        { name: "Kholinar", coords: [620, 780], desc: "Capital of Alethkar" },
-        { name: "Urithiru", coords: [550, 500], desc: "The Tower City" },
-        { name: "Kharbranth", coords: [200, 750], desc: "The City of Bells" },
-        { name: "Shinovar", coords: [450, 150], desc: "Land of the Stone Shamans" }
+    // Major Points of Interest
+    const pois = [
+        { name: "Urithiru", pos: [550, 500], desc: "The legendary tower city." },
+        { name: "Kholinar", pos: [620, 785], desc: "Capital of Alethkar." },
+        { name: "Shattered Plains", pos: [450, 850], desc: "Site of the War of Reckoning." },
+        { name: "Kharbranth", pos: [205, 755], desc: "The City of Bells." }
     ];
 
-    locations.forEach(loc => {
-        L.marker(loc.coords).addTo(map).bindPopup(`<b>${loc.name}</b><br>${loc.desc}`);
+    pois.forEach(p => {
+        L.marker(p.pos).addTo(map).bindPopup(`<b>${p.name}</b><br>${p.desc}`);
     });
 
-    // 2. PARTY TRACKER LOGIC
-    let party = [
-        { id: 1, name: "Kaladin", path: "Windrunner", health: 20, maxHealth: 20, stormlight: 5 },
-    ];
+    // Display coordinates on click (useful for GMing)
+    map.on('click', (e) => {
+        const c = e.latlng;
+        document.getElementById('coords').innerText = `Lat: ${Math.round(c.lat)}, Lng: ${Math.round(c.lng)}`;
+    });
 
+    // --- 3. PARTY TRACKER LOGIC ---
     function renderParty() {
-        const list = document.getElementById('party-list');
-        list.innerHTML = party.map(char => `
-            <div class="character-card">
-                <strong>${char.name}</strong> (${char.path})
-                <div class="stat-row">
-                    <span>Health:</span>
-                    <span>
-                        <input type="number" value="${char.health}" onchange="updateStat(${char.id}, 'health', this.value)"> / ${char.maxHealth}
-                    </span>
+        const container = document.getElementById('party-list');
+        container.innerHTML = '';
+
+        if (party.length === 0) {
+            container.innerHTML = `<p style="text-align:center; opacity:0.5; margin-top:50px;">No characters in party yet.</p>`;
+        }
+
+        party.forEach(char => {
+            const card = document.createElement('div');
+            card.className = 'character-card';
+            card.innerHTML = `
+                <button class="delete-btn" onclick="deleteCharacter(${char.id})">✕</button>
+                <div style="margin-bottom:10px;">
+                    <input type="text" value="${char.name}" onchange="updateChar(${char.id}, 'name', this.value)" style="font-weight:bold; font-size:1.1em; border:none; background:none;">
+                    <input type="text" value="${char.path}" onchange="updateChar(${char.id}, 'path', this.value)" style="font-size:0.8em; opacity:0.7; border:none; background:none; width:100%">
                 </div>
-                <div class="stat-row">
-                    <span>Stormlight:</span>
-                    <span>
-                        <input type="number" value="${char.stormlight}" onchange="updateStat(${char.id}, 'stormlight', this.value)">
-                    </span>
+                <div class="stat-group">
+                    <div class="stat-box">
+                        <label>Health</label>
+                        <input type="number" value="${char.hp}" onchange="updateChar(${char.id}, 'hp', this.value)">
+                    </div>
+                    <div class="stat-box">
+                        <label>Max HP</label>
+                        <input type="number" value="${char.hpMax}" onchange="updateChar(${char.id}, 'hpMax', this.value)">
+                    </div>
+                    <div class="stat-box">
+                        <label>Stormlight</label>
+                        <input type="number" value="${char.light}" onchange="updateChar(${char.id}, 'light', this.value)">
+                    </div>
+                    <div class="stat-box">
+                        <label>Armor</label>
+                        <input type="number" value="${char.armor}" onchange="updateChar(${char.id}, 'armor', this.value)">
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+            container.appendChild(card);
+        });
+
+        localStorage.setItem('rosharParty', JSON.stringify(party));
     }
 
-    function addCharacter() {
-        const name = prompt("Character Name:");
-        if (!name) return;
+    function addNewCharacter() {
         const newChar = {
             id: Date.now(),
-            name: name,
-            path: "Radiant",
-            health: 20,
-            maxHealth: 20,
-            stormlight: 0
+            name: "New Hero",
+            path: "Windrunner / Level 1",
+            hp: 20,
+            hpMax: 20,
+            light: 3,
+            armor: 0
         };
         party.push(newChar);
         renderParty();
     }
 
-    function updateStat(id, stat, val) {
-        const char = party.find(c => c.id === id);
-        if (char) char[stat] = parseInt(val);
+    function deleteCharacter(id) {
+        if (confirm("Remove this character?")) {
+            party = party.filter(c => c.id !== id);
+            renderParty();
+        }
     }
 
-    // Initial render
+    function updateChar(id, key, val) {
+        const char = party.find(c => c.id === id);
+        if (char) {
+            char[key] = isNaN(val) ? val : parseInt(val);
+            localStorage.setItem('rosharParty', JSON.stringify(party));
+        }
+    }
+
+    // Initial Render
     renderParty();
 
-    // Click map to get coordinates (for GMing)
-    map.on('click', function(e) {
-        console.log("Clicked at: ", e.latlng);
-    });
-</script>
+    // Leaflet bug fix for container size
+    setTimeout(() => { map.invalidateSize(); }, 500);
 
+</script>
 </body>
 </html>
