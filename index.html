@@ -2,25 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Cosmere RPG - Roshar Companion</title>
+    <title>Cosmere RPG - Party Tracker</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --shard: #1a252f; --gold: #f1c40f; --danger: #e74c3c; --bg: #2c3e50; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #000; color: #ecf0f1; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #000; color: #ecf0f1; overflow: hidden; }
         
-        /* Sidebar Styles */
-        #sidebar { width: 350px; background: var(--bg); display: flex; flex-direction: column; box-shadow: 4px 0 15px #000; z-index: 1001; }
+        /* Sidebar */
+        #sidebar { width: 380px; background: var(--bg); display: flex; flex-direction: column; box-shadow: 4px 0 15px #000; z-index: 1001; }
         .header { padding: 20px; background: var(--shard); border-bottom: 2px solid var(--gold); }
         #party-list { flex-grow: 1; padding: 15px; overflow-y: auto; }
         
-        /* Character Card Styles */
-        .card { background: rgba(0,0,0,0.3); border-left: 5px solid var(--gold); padding: 15px; margin-bottom: 12px; border-radius: 4px; position: relative; }
+        /* Full Character Card */
+        .card { background: rgba(0,0,0,0.3); border-left: 5px solid var(--gold); padding: 15px; margin-bottom: 15px; border-radius: 4px; position: relative; }
         .del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--danger); cursor: pointer; font-weight: bold; }
-        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .stats label { font-size: 0.65em; text-transform: uppercase; color: var(--gold); display: block; }
-        input { width: 100%; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 4px; border-radius: 3px; }
         
-        .add-btn { margin: 15px; padding: 12px; background: var(--gold); border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .char-info { margin-bottom: 10px; }
+        .char-info input[type="text"] { width: 90%; border: none; background: none; color: white; display: block; }
+        .char-name { font-weight: bold; font-size: 1.2em; }
+        .char-path { font-size: 0.85em; opacity: 0.7; font-style: italic; }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid rgba(255,255,255,0.1); pt: 10px; padding-top: 10px; }
+        .stat-box label { font-size: 0.65em; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 2px; }
+        input[type="number"] { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid #444; color: white; padding: 5px; border-radius: 3px; box-sizing: border-box; }
+        
+        .add-btn { margin: 15px; padding: 12px; background: var(--gold); border: none; font-weight: bold; cursor: pointer; border-radius: 4px; color: #111; }
         
         /* Map Area */
         #map { flex-grow: 1; background: #0b1621; }
@@ -32,10 +38,10 @@
 <div id="sidebar">
     <div class="header">
         <h2 style="margin:0">Party Tracker</h2>
-        <small>Cosmere RPG Session</small>
+        <small>Cosmere RPG Campaign</small>
     </div>
     <div id="party-list"></div>
-    <button class="add-btn" onclick="addChar()">+ Add Party Member</button>
+    <button class="add-btn" onclick="addChar()">+ Recruit New Radiant</button>
 </div>
 
 <div id="map"></div>
@@ -43,56 +49,59 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // --- 1. DATA & STATE ---
+    // --- 1. DATA ---
     let party = JSON.parse(localStorage.getItem('cosmereParty')) || [];
-    let partyMarker = null; // To track the party's location on the map
+    let partyMarker = null;
 
-    // --- 2. MAP SETUP (DYNAMIC ASPECT RATIO) ---
-    const map = L.map('map', { 
-        crs: L.CRS.Simple, 
-        minZoom: -3,
-        attributionControl: false 
-    });
-
+    // --- 2. MAP SETUP (ANTI-SQUISH) ---
+    const map = L.map('map', { crs: L.CRS.Simple, minZoom: -3, attributionControl: false });
     const img = new Image();
-    img.src = 'roshar.webp'; // Make sure your file is named this!
+    img.src = 'roshar.webp'; 
     
     img.onload = function() {
-        // Calculate the aspect ratio based on your actual file
         const w = this.width;
         const h = this.height;
-        const southWest = map.unproject([0, h], map.getMaxZoom()-1);
-        const northEast = map.unproject([w, 0], map.getMaxZoom()-1);
-        const bounds = new L.LatLngBounds(southWest, northEast);
-
-        L.imageOverlay(img.src, bounds).addTo(map);
-        map.setMaxBounds(bounds);
+        const bounds = [[0, 0], [h, w]]; 
+        L.imageOverlay('roshar.webp', bounds).addTo(map);
         map.fitBounds(bounds);
+        map.setMaxBounds(bounds);
     };
 
     // --- 3. INTERACTIVITY ---
     map.on('click', e => {
         const {lat, lng} = e.latlng;
         document.getElementById('coords').innerText = `Lat: ${Math.round(lat)}, Lng: ${Math.round(lng)}`;
-
-        // Move or Create the Party Pin
-        if (partyMarker) {
-            partyMarker.setLatLng(e.latlng);
-        } else {
-            partyMarker = L.marker(e.latlng).addTo(map).bindPopup("<b>The Party</b>").openPopup();
-        }
+        if (partyMarker) { partyMarker.setLatLng(e.latlng); } 
+        else { partyMarker = L.marker(e.latlng).addTo(map).bindPopup("<b>The Party</b>").openPopup(); }
     });
 
-    // --- 4. PARTY TRACKER LOGIC ---
+    // --- 4. PARTY LOGIC ---
     function render() {
         const list = document.getElementById('party-list');
         list.innerHTML = party.map(c => `
             <div class="card">
                 <button class="del" onclick="removeChar(${c.id})">✕</button>
-                <input type="text" value="${c.name}" onchange="update(${c.id}, 'name', this.value)" style="font-weight:bold; border:none; background:none; font-size:1.1em; color:white;">
-                <div class="stats">
-                    <div><label>Health</label><input type="number" value="${c.hp}" onchange="update(${c.id}, 'hp', this.value)"></div>
-                    <div><label>Stormlight</label><input type="number" value="${c.sl}" onchange="update(${c.id}, 'sl', this.value)"></div>
+                <div class="char-info">
+                    <input type="text" class="char-name" value="${c.name}" onchange="update(${c.id}, 'name', this.value)">
+                    <input type="text" class="char-path" value="${c.path}" onchange="update(${c.id}, 'path', this.value)">
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <label>Current HP</label>
+                        <input type="number" value="${c.hp}" onchange="update(${c.id}, 'hp', this.value)">
+                    </div>
+                    <div class="stat-box">
+                        <label>Max HP</label>
+                        <input type="number" value="${c.hpMax}" onchange="update(${c.id}, 'hpMax', this.value)">
+                    </div>
+                    <div class="stat-box">
+                        <label>Stormlight</label>
+                        <input type="number" value="${c.sl}" onchange="update(${c.id}, 'sl', this.value)">
+                    </div>
+                    <div class="stat-box">
+                        <label>Armor</label>
+                        <input type="number" value="${c.armor}" onchange="update(${c.id}, 'armor', this.value)">
+                    </div>
                 </div>
             </div>
         `).join('');
@@ -100,13 +109,21 @@
     }
 
     function addChar() {
-        party.push({ id: Date.now(), name: "New Radiant", hp: 20, sl: 3 });
+        party.push({ 
+            id: Date.now(), 
+            name: "New Hero", 
+            path: "Windrunner - 1st Ideal",
+            hp: 20, 
+            hpMax: 20,
+            sl: 3,
+            armor: 0
+        });
         render();
     }
 
     function removeChar(id) {
-        if(confirm("Send this Radiant to the Tranquiline Halls?")) {
-            party = party.filter(c => c.id !== id);
+        if(confirm("Remove from party?")) {
+            party = party.filter(p => p.id !== id);
             render();
         }
     }
@@ -114,14 +131,12 @@
     function update(id, key, val) {
         const c = party.find(p => p.id === id);
         if(c) {
-            c[key] = isNaN(val) ? val : parseInt(val);
+            c[key] = isNaN(val) || val === '' ? val : parseInt(val);
             localStorage.setItem('cosmereParty', JSON.stringify(party));
         }
     }
 
     render();
-    
-    // Refresh map size if the window changes
     window.addEventListener('resize', () => map.invalidateSize());
 </script>
 </body>
