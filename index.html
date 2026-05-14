@@ -43,30 +43,53 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // --- MAP LOGIC ---
-    const map = L.map('map', { crs: L.CRS.Simple, minZoom: -2 });
-    
-    // THIS USES YOUR LOCAL FILE
-    const mapFile = 'roshar.webp'; 
-    const bounds = [[0, 0], [1000, 1000]];
-    const image = L.imageOverlay(mapFile, bounds).addTo(map);
-    map.fitBounds(bounds);
+    // --- 1. DATA & STATE ---
+    let party = JSON.parse(localStorage.getItem('cosmereParty')) || [];
+    let partyMarker = null; // To track the party's location on the map
 
-    // Coordinate Helper
+    // --- 2. MAP SETUP (DYNAMIC ASPECT RATIO) ---
+    const map = L.map('map', { 
+        crs: L.CRS.Simple, 
+        minZoom: -3,
+        attributionControl: false 
+    });
+
+    const img = new Image();
+    img.src = 'roshar.webp'; // Make sure your file is named this!
+    
+    img.onload = function() {
+        // Calculate the aspect ratio based on your actual file
+        const w = this.width;
+        const h = this.height;
+        const southWest = map.unproject([0, h], map.getMaxZoom()-1);
+        const northEast = map.unproject([w, 0], map.getMaxZoom()-1);
+        const bounds = new L.LatLngBounds(southWest, northEast);
+
+        L.imageOverlay(img.src, bounds).addTo(map);
+        map.setMaxBounds(bounds);
+        map.fitBounds(bounds);
+    };
+
+    // --- 3. INTERACTIVITY ---
     map.on('click', e => {
         const {lat, lng} = e.latlng;
         document.getElementById('coords').innerText = `Lat: ${Math.round(lat)}, Lng: ${Math.round(lng)}`;
+
+        // Move or Create the Party Pin
+        if (partyMarker) {
+            partyMarker.setLatLng(e.latlng);
+        } else {
+            partyMarker = L.marker(e.latlng).addTo(map).bindPopup("<b>The Party</b>").openPopup();
+        }
     });
 
-    // --- PARTY TRACKER LOGIC ---
-    let party = JSON.parse(localStorage.getItem('cosmereParty')) || [];
-
+    // --- 4. PARTY TRACKER LOGIC ---
     function render() {
         const list = document.getElementById('party-list');
         list.innerHTML = party.map(c => `
             <div class="card">
                 <button class="del" onclick="removeChar(${c.id})">✕</button>
-                <input type="text" value="${c.name}" onchange="update(${c.id}, 'name', this.value)" style="font-weight:bold; border:none; background:none; font-size:1.1em;">
+                <input type="text" value="${c.name}" onchange="update(${c.id}, 'name', this.value)" style="font-weight:bold; border:none; background:none; font-size:1.1em; color:white;">
                 <div class="stats">
                     <div><label>Health</label><input type="number" value="${c.hp}" onchange="update(${c.id}, 'hp', this.value)"></div>
                     <div><label>Stormlight</label><input type="number" value="${c.sl}" onchange="update(${c.id}, 'sl', this.value)"></div>
@@ -82,7 +105,7 @@
     }
 
     function removeChar(id) {
-        if(confirm("Delete character?")) {
+        if(confirm("Send this Radiant to the Tranquiline Halls?")) {
             party = party.filter(c => c.id !== id);
             render();
         }
@@ -97,8 +120,9 @@
     }
 
     render();
-    // Fix for initial load rendering
-    setTimeout(() => { map.invalidateSize(); }, 200);
+    
+    // Refresh map size if the window changes
+    window.addEventListener('resize', () => map.invalidateSize());
 </script>
 </body>
 </html>
