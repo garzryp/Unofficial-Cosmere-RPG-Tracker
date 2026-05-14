@@ -2,254 +2,103 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roshar Companion - Cosmere RPG</title>
+    <title>Cosmere RPG - Roshar Companion</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root {
-            --shard-blue: #1a252f;
-            --stormlight-gold: #f1c40f;
-            --parsh-red: #e74c3c;
-            --sidebar-bg: #2c3e50;
-            --text-main: #ecf0f1;
-        }
-
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            margin: 0; 
-            display: flex; 
-            height: 100vh; 
-            background: #000; 
-            color: var(--text-main);
-        }
-
-        /* Sidebar Sidebar */
-        #sidebar { 
-            width: 380px; 
-            background: var(--sidebar-bg); 
-            display: flex; 
-            flex-direction: column;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
-            z-index: 1001;
-        }
-
-        .sidebar-header {
-            padding: 20px;
-            background: var(--shard-blue);
-            border-bottom: 2px solid var(--stormlight-gold);
-        }
-
-        #party-list {
-            flex-grow: 1;
-            padding: 15px;
-            overflow-y: auto;
-        }
-
-        /* Character Cards */
-        .character-card {
-            background: rgba(0,0,0,0.2);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-left: 5px solid var(--stormlight-gold);
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-            position: relative;
-        }
-
-        .delete-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: none;
-            border: none;
-            color: var(--parsh-red);
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 1.2em;
-        }
-
-        .stat-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .stat-box label { font-size: 0.7em; text-transform: uppercase; display: block; color: var(--stormlight-gold); }
-        input[type="number"], input[type="text"] {
-            width: 100%;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid #444;
-            color: white;
-            padding: 5px;
-            border-radius: 3px;
-            box-sizing: border-box;
-        }
-
-        .btn-add {
-            margin: 20px;
-            padding: 12px;
-            background: var(--stormlight-gold);
-            color: #000;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-
-        .btn-add:active { transform: scale(0.98); }
-
+        :root { --shard: #1a252f; --gold: #f1c40f; --danger: #e74c3c; --bg: #2c3e50; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #000; color: #ecf0f1; }
+        
+        /* Sidebar Styles */
+        #sidebar { width: 350px; background: var(--bg); display: flex; flex-direction: column; box-shadow: 4px 0 15px #000; z-index: 1001; }
+        .header { padding: 20px; background: var(--shard); border-bottom: 2px solid var(--gold); }
+        #party-list { flex-grow: 1; padding: 15px; overflow-y: auto; }
+        
+        /* Character Card Styles */
+        .card { background: rgba(0,0,0,0.3); border-left: 5px solid var(--gold); padding: 15px; margin-bottom: 12px; border-radius: 4px; position: relative; }
+        .del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--danger); cursor: pointer; font-weight: bold; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .stats label { font-size: 0.65em; text-transform: uppercase; color: var(--gold); display: block; }
+        input { width: 100%; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 4px; border-radius: 3px; }
+        
+        .add-btn { margin: 15px; padding: 12px; background: var(--gold); border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        
         /* Map Area */
-        #map-area { flex-grow: 1; position: relative; }
-        #map { height: 100%; width: 100%; background: #0b1621; }
-
-        .map-coords {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 5px 10px;
-            border-radius: 4px;
-            z-index: 1000;
-            font-size: 0.8em;
-            pointer-events: none;
-        }
+        #map { flex-grow: 1; background: #0b1621; }
+        .coord-display { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px; font-size: 0.8em; z-index: 1000; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <div class="sidebar-header">
+    <div class="header">
         <h2 style="margin:0">Party Tracker</h2>
-        <small style="opacity:0.6">Bridge Four / Radiant Squad</small>
+        <small>Cosmere RPG Session</small>
     </div>
-    
-    <div id="party-list">
-        </div>
-
-    <button class="btn-add" onclick="addNewCharacter()">+ Recruit New Radiant</button>
+    <div id="party-list"></div>
+    <button class="add-btn" onclick="addChar()">+ Add Party Member</button>
 </div>
 
-<div id="map-area">
-    <div id="map"></div>
-    <div class="map-coords" id="coords">Click map for coordinates</div>
-</div>
+<div id="map"></div>
+<div class="coord-display" id="coords">Click map for coordinates</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
-    // --- 1. INITIALIZE DATA ---
-    let party = JSON.parse(localStorage.getItem('rosharParty')) || [];
-
-    // --- 2. MAP SETUP ---
-    const map = L.map('map', {
-        crs: L.CRS.Simple,
-        minZoom: -2
-    });
-
-    // Replace this URL with your local file "roshar.jpg" or a stable link
-    const mapImgUrl = 'https://www.worldanvil.com/uploads/images/7377f0a8d5e8654c86e066e4a2e0e4b8.jpg';
+    // --- MAP LOGIC ---
+    const map = L.map('map', { crs: L.CRS.Simple, minZoom: -2 });
+    
+    // THIS USES YOUR LOCAL FILE
+    const mapFile = 'roshar.webp'; 
     const bounds = [[0, 0], [1000, 1000]];
-    const image = L.imageOverlay(mapImgUrl, bounds).addTo(map);
+    const image = L.imageOverlay(mapFile, bounds).addTo(map);
     map.fitBounds(bounds);
 
-    // Major Points of Interest
-    const pois = [
-        { name: "Urithiru", pos: [550, 500], desc: "The legendary tower city." },
-        { name: "Kholinar", pos: [620, 785], desc: "Capital of Alethkar." },
-        { name: "Shattered Plains", pos: [450, 850], desc: "Site of the War of Reckoning." },
-        { name: "Kharbranth", pos: [205, 755], desc: "The City of Bells." }
-    ];
-
-    pois.forEach(p => {
-        L.marker(p.pos).addTo(map).bindPopup(`<b>${p.name}</b><br>${p.desc}`);
+    // Coordinate Helper
+    map.on('click', e => {
+        const {lat, lng} = e.latlng;
+        document.getElementById('coords').innerText = `Lat: ${Math.round(lat)}, Lng: ${Math.round(lng)}`;
     });
 
-    // Display coordinates on click (useful for GMing)
-    map.on('click', (e) => {
-        const c = e.latlng;
-        document.getElementById('coords').innerText = `Lat: ${Math.round(c.lat)}, Lng: ${Math.round(c.lng)}`;
-    });
+    // --- PARTY TRACKER LOGIC ---
+    let party = JSON.parse(localStorage.getItem('cosmereParty')) || [];
 
-    // --- 3. PARTY TRACKER LOGIC ---
-    function renderParty() {
-        const container = document.getElementById('party-list');
-        container.innerHTML = '';
-
-        if (party.length === 0) {
-            container.innerHTML = `<p style="text-align:center; opacity:0.5; margin-top:50px;">No characters in party yet.</p>`;
-        }
-
-        party.forEach(char => {
-            const card = document.createElement('div');
-            card.className = 'character-card';
-            card.innerHTML = `
-                <button class="delete-btn" onclick="deleteCharacter(${char.id})">✕</button>
-                <div style="margin-bottom:10px;">
-                    <input type="text" value="${char.name}" onchange="updateChar(${char.id}, 'name', this.value)" style="font-weight:bold; font-size:1.1em; border:none; background:none;">
-                    <input type="text" value="${char.path}" onchange="updateChar(${char.id}, 'path', this.value)" style="font-size:0.8em; opacity:0.7; border:none; background:none; width:100%">
+    function render() {
+        const list = document.getElementById('party-list');
+        list.innerHTML = party.map(c => `
+            <div class="card">
+                <button class="del" onclick="removeChar(${c.id})">✕</button>
+                <input type="text" value="${c.name}" onchange="update(${c.id}, 'name', this.value)" style="font-weight:bold; border:none; background:none; font-size:1.1em;">
+                <div class="stats">
+                    <div><label>Health</label><input type="number" value="${c.hp}" onchange="update(${c.id}, 'hp', this.value)"></div>
+                    <div><label>Stormlight</label><input type="number" value="${c.sl}" onchange="update(${c.id}, 'sl', this.value)"></div>
                 </div>
-                <div class="stat-group">
-                    <div class="stat-box">
-                        <label>Health</label>
-                        <input type="number" value="${char.hp}" onchange="updateChar(${char.id}, 'hp', this.value)">
-                    </div>
-                    <div class="stat-box">
-                        <label>Max HP</label>
-                        <input type="number" value="${char.hpMax}" onchange="updateChar(${char.id}, 'hpMax', this.value)">
-                    </div>
-                    <div class="stat-box">
-                        <label>Stormlight</label>
-                        <input type="number" value="${char.light}" onchange="updateChar(${char.id}, 'light', this.value)">
-                    </div>
-                    <div class="stat-box">
-                        <label>Armor</label>
-                        <input type="number" value="${char.armor}" onchange="updateChar(${char.id}, 'armor', this.value)">
-                    </div>
-                </div>
-            `;
-            container.appendChild(card);
-        });
-
-        localStorage.setItem('rosharParty', JSON.stringify(party));
+            </div>
+        `).join('');
+        localStorage.setItem('cosmereParty', JSON.stringify(party));
     }
 
-    function addNewCharacter() {
-        const newChar = {
-            id: Date.now(),
-            name: "New Hero",
-            path: "Windrunner / Level 1",
-            hp: 20,
-            hpMax: 20,
-            light: 3,
-            armor: 0
-        };
-        party.push(newChar);
-        renderParty();
+    function addChar() {
+        party.push({ id: Date.now(), name: "New Radiant", hp: 20, sl: 3 });
+        render();
     }
 
-    function deleteCharacter(id) {
-        if (confirm("Remove this character?")) {
+    function removeChar(id) {
+        if(confirm("Delete character?")) {
             party = party.filter(c => c.id !== id);
-            renderParty();
+            render();
         }
     }
 
-    function updateChar(id, key, val) {
-        const char = party.find(c => c.id === id);
-        if (char) {
-            char[key] = isNaN(val) ? val : parseInt(val);
-            localStorage.setItem('rosharParty', JSON.stringify(party));
+    function update(id, key, val) {
+        const c = party.find(p => p.id === id);
+        if(c) {
+            c[key] = isNaN(val) ? val : parseInt(val);
+            localStorage.setItem('cosmereParty', JSON.stringify(party));
         }
     }
 
-    // Initial Render
-    renderParty();
-
-    // Leaflet bug fix for container size
-    setTimeout(() => { map.invalidateSize(); }, 500);
-
+    render();
+    // Fix for initial load rendering
+    setTimeout(() => { map.invalidateSize(); }, 200);
 </script>
 </body>
 </html>
